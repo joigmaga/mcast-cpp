@@ -26,8 +26,8 @@ using namespace std;
 // This is the local logger instance for the logging module (compilation unit)
 //
 // There are two interfaces:
-//   - pointer based: logger_ptr->log(...)
-//   - reference based (additional): logger.log(...)
+//   - pointer based (mandatory): logger_ptr->log(...)
+//   - reference based (optional): logger.log(...)
 //
 static logptr_t logger_ptr = Logger::get_logger("LOGGING", WARNING, STDERR);
 // optional and additional to the above (requires the pointer interface)
