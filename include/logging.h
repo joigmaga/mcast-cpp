@@ -3,10 +3,11 @@
 
 #include <stdarg.h>
 
+#include <memory>
+#include <mutex>
 #include <fstream>
 #include <iostream>
-#include <vector>
-#include <queue>
+#include <map>
 
 #define UNCHANGED (-1)
 

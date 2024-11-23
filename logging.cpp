@@ -10,9 +10,6 @@ A multicast interface to the socket library
 
 #include <string.h>
 
-#include <memory>
-#include <map>
-#include <mutex>
 #include <ctime>
 #include <cstdarg>
 #include <fstream>
