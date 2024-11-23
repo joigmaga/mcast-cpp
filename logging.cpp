@@ -29,7 +29,7 @@ using namespace std;
 //   - pointer based (mandatory): logger_ptr->log(...)
 //   - reference based (optional): logger.log(...)
 //
-static logptr_t logger_ptr = Logger::get_logger("LOGGING", WARNING, STDERR);
+static logptr_t logger_ptr = Logger::get_logger("_LOGGING", WARNING, STDERR);
 // optional and additional to the above (requires the pointer interface)
 static logref_t logger = *logger_ptr;
 
@@ -54,18 +54,18 @@ static logref_t logger = *logger_ptr;
 //
 Logger::Logger(Private) : modname(""),
                           loglevel(WARNING),
+                          outstream(nullptr),
                           propagate(false),
-                          parent(nullptr),
-                          outstream(nullptr)   { };
+                          parent(nullptr)      { };
 // non-root Logger constructor
 Logger::Logger(Private, const string& module) : modname(module),
                                                 loglevel(NOTSET),
-                                                propagate(true),
-                                                outstream(nullptr) { };
+                                                outstream(nullptr),
+                                                propagate(true)       { };
 
 // Destructor. Update loggers tree and close log file
 Logger::~Logger() {
-  // Only update a tree entry if it has a parent but it has no children 
+  // Update a tree entry only if it has a parent and has no children 
 
   lock_guard<mutex> lock(logmutex);
   if (dict.size() == 0) {                 // we do not have children. OK
@@ -111,7 +111,7 @@ logptr_t Logger::get_logger(const string& module, int level, int stream) {
   size_t dotpos = 0;               // position of '.' character in name
   int exit_loop = 0;               // to avoid excesive number of sub modules
 
-  instance = get_logger();            // this is the root instance
+  instance = get_logger();         // this is the root instance
 
   while(instance) {
     size_t pos;
@@ -350,7 +350,7 @@ void Logger::logaux(int level, const char* format, va_list vl) {
   string  msg, rec;
   string& message = msg;
   string& record  = rec;
-  logptr_t instance;
+  Logger* instance;
 
   // retain original 'level' and 'modname' values across potential loggers
   // Message formatting
@@ -358,7 +358,7 @@ void Logger::logaux(int level, const char* format, va_list vl) {
   // Record formatting as a log message wrapper
   record  = logrecord(record, timefmt, modname, message, level);
 
-  instance = shared_from_this();
+  instance = this;
   while (instance) {
 
     // lock here to prevent other threads from changing level, stream, etc
@@ -371,15 +371,15 @@ void Logger::logaux(int level, const char* format, va_list vl) {
       }
 
       // log to log file if open
-      if (logfile.is_open()) {
-        logfile << record << endl;
-        logfile.flush();
+      if (instance->logfile.is_open()) {
+        instance->logfile << record << endl;
+        instance->logfile.flush();
       }
     }
 
     if (not instance->propagate)
       break;
 
-    instance = instance->parent;
+    instance = instance->parent.get();
   }
 }

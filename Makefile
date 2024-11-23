@@ -30,5 +30,5 @@ clean:
 	rm -f ${PROGRAMS} ${OBJECTS}
 
 %.o: %.cpp Makefile
-	${CXX} ${CXXFLAGS} -c $<
+	${CXX} ${CXXFLAGS} ${CXXEXTRAFLAGS} -c $<
 

@@ -34,7 +34,9 @@
 
 // The logger class
 // 
-class Logger : public std::enable_shared_from_this<Logger> {
+class Logger;
+
+class Logger {
   private:
     // local typedefs
     typedef std::shared_ptr<Logger> logptr_t;
