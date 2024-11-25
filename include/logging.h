@@ -29,6 +29,10 @@
 #define MINLOG   NOTSET
 #define MAXLOG   CRITICAL
 
+/*
+#define MODULE_NAME_SIZE      8
+*/
+#define MODULE_NAME_SIZE      32
 #define MAX_MODULE_SUBFIELDS  32
 
 #define TIMEFMT  "%Y/%m/%d:%H:%M:%S"
@@ -91,7 +95,7 @@ class Logger {
     int set_loglevel(int level);
     // Select log file and streamer
     void set_logfile(const std::string& fname);
-    void set_streamer(int streamval);
+    std::ostream* set_streamer(int streamval);
     // Control tree navigation
     bool set_propagation(bool mode);
 };

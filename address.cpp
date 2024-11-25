@@ -32,7 +32,7 @@ A multicast interface to the socket library
 using namespace std;
 
 // logging instance for this module
-static logptr_t logger = Logger::get_logger("ADDRESS", WARNING, STDERR);
+static logptr_t logger = Logger::get_logger("ADDRESS");
 
 // map describing the address families used in this module
 // map<int, string> family_map;

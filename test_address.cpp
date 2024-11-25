@@ -7,7 +7,7 @@
 
 using namespace std;
 
-static logptr_t logger = Logger::get_logger("TEST_1", WARNING, STDERR);
+static logptr_t logger = Logger::get_logger("TEST_1");
 
 int main() {
   string host1   = "130.56.897.2";
@@ -17,7 +17,10 @@ int main() {
   string serv2   = "89";
   Address* addr;
 
-  logger->set_streamer(STDLOG);
+  logptr_t root_logger = Logger::get_logger();
+  root_logger->set_loglevel(DEBUG);
+  root_logger->set_streamer(STDLOG);
+
   logger->set_logfile("logfile.log");
 
   addr = get_address(host1, serv2);
@@ -38,7 +41,7 @@ int main() {
 
   {
     cerr << "runtime2 instance count: " << logger.use_count() << endl;
-    logptr_t logger2 = Logger::get_logger("TEST_2", WARNING, STDERR);
+    logptr_t logger2 = Logger::get_logger("TEST_2");
     logger2->set_logfile("logfile2.log");
 
     logger2->error("big error: %d, %d, %s", 98, 67, "forgot the keys again");
@@ -53,6 +56,14 @@ int main() {
       cout << "host: " << addr->Address::print() << endl;
     }
 
-    logptr_t logger3 = Logger::get_logger("TEST_2", WARNING, STDERR);
+    logptr_t logger3 = Logger::get_logger("TEST_2");
   }
+  {
+    logptr_t logger2 = Logger::get_logger("T1.T2");
+    logger2->error("big error: %d, %d, %s", 9, 6, "forgot the keys once again");
+    
+    logptr_t logger3 = Logger::get_logger("T1.T2.T3.T4");
+    logger3->error("big error: %d, %d, %s", 9, 6, "forgot the keys once again");
+  } 
+
 }

@@ -14,6 +14,9 @@ PROGRAMS := ${SOURCES:.cpp=}
 test_address: test_address.o address.o logging.o
 	${CXX} $^ -o $@
 
+test2: test2.o logging.o
+	${CXX} $^ -o $@
+
 #
 #  Putting everything together 
 #
