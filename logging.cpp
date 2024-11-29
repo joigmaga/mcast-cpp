@@ -21,19 +21,30 @@ A multicast interface to the socket library
 
 using namespace std;
 
-// This could be the logger instance for a module (compilation unit) 'MOD_NAME'
+//////////// A logging facility on a per 'module' basis
 //
-// There are two interfaces:
+// A module is a piece of code which can range from a single block to an
+// entire compilation unit
+//
+// Two interfaces are offered:
 //   - pointer based (off the shelve):  logger_ptr->log(...)
 //   - reference based (optional):      logger.log(...)
 //
+// As an example, this could be the logger interface for a module
+// (compilation unit) named 'MOD_NAME'
+//
 // static logptr_t logger_ptr = Logger::get_logger("MOD_NAME", WARNING, STDLOG);
 //
-//// optional, additional to the above (requires the pointer interface)
+//// optional (requires the pointer interface though) reference based interface
 //
 // static logref_t logger = *logger_ptr;
 
+// this is lazily initialized
 static thread::id main_thread_id = this_thread::get_id();
+//
+// this boolean dynamically enables an especial debug facility intended for
+// logging tree building control in complex scenarios
+static bool root_debug = false;
 
 ///////////// Logger class
 //
@@ -58,59 +69,65 @@ Logger::Logger(Private) : modname(""),
                           loglevel(WARNING),
                           outstream(nullptr),
                           propagate(false),
-                          parent(nullptr)      { 
+                          parent(nullptr)      { };
 
-  main_thread_id = this_thread::get_id();
-  int level = set_loglevel(DEBUG);
-  ostream* os = set_streamer(STDLOG);
-  debug("created root logging instance");
-  outstream = os;
-  set_loglevel(level);
-};
 // non-root Logger constructor
 Logger::Logger(Private, const string& module) : modname(module),
                                                 loglevel(NOTSET),
                                                 outstream(nullptr),
-                                                propagate(true)       { 
-  ostream* os = set_streamer(STDLOG);
-  debug("created logging module %s", modname.c_str());
-  outstream = os;
-};
+                                                propagate(true)       { };
 
 // Destructor. Update loggers tree and close log file
 Logger::~Logger() {
   string module = modname;
+
+  lock_guard<mutex> lock(treemutex);
 
   if (not parent) {                               // root
     info("destroying root logging module");       // use root logger
     module = "root";                              // rename modname
   }
   else {
-    info("destroying logging module '%s'", modname.c_str());
+    debug("destroying logging module '%s'", modname.c_str());
 
-    lock_guard<mutex> lock(logmutex);
     if (dict.size() == 0) {                 // we do not have children. OK
       bool orphan = false;                  // Are there other pointers to us?
+
       {
-        // lock parent and look for a weak pointer to us in its dict
-        lock_guard<mutex> lockparent(parent->logmutex);
+        lock_guard<mutex> lockparent(parent->treemutex);
+        // look for a weak pointer to us in this instance dict
         logptr_t child_ptr = parent->dict[modname].lock();      // weak ptr
         // check if other pointer(s) have been created in the meantime
         orphan = child_ptr == nullptr;
-        if (orphan)
-          // remove weak pointer from parent's dict
+        if (orphan) {
+          debug("orphaned. update parent's dictionary"); 
           parent->dict.erase(modname);
+        }
       }
-      if (orphan) {
-        // this will safely call parent's destructor since it is unlocked now
-        parent.reset();                          // cancel pointer to parent
-        // close log file
-        if (logfile.is_open())
-          logfile.close();
+      if (orphan) {  
+          // this will safely call parent's destructor
+          debug("removing pointer to parent"); 
+          parent.reset();                     // cancel pointer to parent
+          debug("parent removed"); 
+          // close log file
+          if (logfile.is_open())
+            logfile.close();
+          if (root_debug) {
+            set_loglevel(DEBUG);
+            set_streamer(STDLOG);
+          }
+          debug("tree update complete");
+      }
+      else {
+        debug("a new logger must have been created in the meantime");
       }
     }
+    //if (root_debug) {
+    //  set_loglevel(DEBUG);
+    //  set_streamer(STDLOG);
+    //}
   }
-  info("%s destroyed", module.c_str());
+  info("logging module %s destroyed", module.c_str());
 }
 // Factories for root and regular loggers
 //
@@ -119,27 +136,35 @@ logptr_t Logger::get_logger(int level, int stream) {
 // Instance gets created and initialized the first time this method is called
 // The root instance is unique. This method always return the same pointer
 //
-//  static logptr_t root_instance = make_shared<Logger>(Private());
-
   static logptr_t root_instance = nullptr;
+  mutex rootmutex;
 
+  lock_guard<mutex> lock(rootmutex);
   if (not root_instance) {
+    main_thread_id = this_thread::get_id();
     root_instance = make_shared<Logger>(Private());
+    if (level == ROOT_DEBUG) {
+      root_debug = true;
+      root_instance->set_loglevel(DEBUG);
+      root_instance->set_streamer(STDLOG);
+    }
+    root_instance->info("root logging instance created");
   }
-
-  root_instance->set_loglevel(level);
-  root_instance->set_streamer(stream);
+  else {
+    root_instance->set_loglevel(level);
+    root_instance->set_streamer(stream);
+  }
 
   return root_instance;
 }
 //
 logptr_t Logger::get_logger(const string& module, int level, int stream) {
   logptr_t  instance;
-  string    action;
   size_t dotpos = 0;               // position of '.' character in name
   int exit_loop = 0;               // to avoid excesive number of sub modules
 
-  instance = get_logger();         // this is the root instance
+  int root_level = level == ROOT_DEBUG ? level : UNCHANGED;
+  instance = get_logger(root_level);       // this is the root instance
 
   while(instance) {
     size_t pos;
@@ -150,38 +175,41 @@ logptr_t Logger::get_logger(const string& module, int level, int stream) {
 
     if (++exit_loop > MAX_MODULE_SUBFIELDS) {
       // don't do any more searching
-      instance->error("max number of module subfields exceeded");
+      int mms = MAX_MODULE_SUBFIELDS;
+      instance->error("max number of module subfields (%d) exceeded for %s",
+                        mms, module.c_str());
       break;
     }
 
-    instance->debug("fetching logger");
+    lock_guard<mutex> lock(instance->treemutex);
 
-    {
-      lock_guard<mutex> lock(instance->logmutex);
-      if (instance->dict.count(submod) > 0) {
-        // (sub) module exists. Fetch its pointer in the dictionary
-        instance = instance->dict[submod].lock();   // weak pointer -> shared
-        action = "found";
-      }
-      else {
-        // create new shared pointer and store it in dict
-        logptr_t new_instance = make_shared<Logger>(Private(), submod);
-      
-        instance->dict[submod] = new_instance;   // store as weak pointer
-        new_instance->parent = instance;         // upwards pointer
-        instance = new_instance;                 // instance refcount++
-        action = "create";
-      }
+    instance->debug("looking for module %s in dict", submod.c_str());
+
+    if (instance->dict.count(submod) > 0) {
+      // (sub) module exists. Fetch its pointer in the dictionary
+      instance = instance->dict[submod].lock();   // weak pointer -> shared
+      instance->debug("found existing logging instance for module %s",
+                       submod.c_str());
+    }
+    else {
+      // create new shared pointer and store it in dict
+      logptr_t new_instance = make_shared<Logger>(Private(), submod);
+    
+      instance->info("created new logging instance for module %s",
+                       submod.c_str());
+
+      instance->dict[submod] = new_instance;   // store as weak pointer
+      new_instance->parent = instance;         // upwards pointer
+      instance = new_instance;                 // instance refcount++
     }
 
     if (pos == string::npos) {                   // end of string reached
       instance->set_loglevel(level);
       instance->set_streamer(stream);
-      instance->info("%s logger", action.c_str()); 
-      break;
     }
 
-    instance->info("%s logger", action.c_str()); 
+    if (pos == string::npos)                     // end of string reached
+      break;
 
     dotpos = pos+1;              // move one char beyond the '.'
   }
@@ -189,7 +217,6 @@ logptr_t Logger::get_logger(const string& module, int level, int stream) {
   if (not instance)
     throw runtime_error(string("null instance returned for module ") + module);
 
-  
   return instance;
 }
 // get/set current log level (safe)
@@ -205,7 +232,7 @@ int Logger::set_loglevel(int level) {
 
   lock_guard<mutex> lock(logmutex);
   int curlevel = loglevel;
-  if (level != UNCHANGED)
+  if (level != UNCHANGED and level != ROOT_DEBUG)
     loglevel = min(MAXLOG, max(MINLOG, abs(level)));
 
   return curlevel;
@@ -222,9 +249,9 @@ bool Logger::set_propagation(bool mode) {
 // Configure the log file for a logger (safe)
 void Logger::set_logfile(const string& fname) {
   string newfname;
-  bool ferror = false;
+  char*  errmsg = nullptr;
 
-  // If file provided and different from current file, open it and
+  // If file is provided and is different from current file, open it and
   // close existing file
   // Use absolute pathnames for file name comparison
 
@@ -251,7 +278,7 @@ void Logger::set_logfile(const string& fname) {
         free(p);
       }
       else
-        ferror = true;
+        errmsg = strerror(errno);
     }
   }
 
@@ -267,13 +294,13 @@ void Logger::set_logfile(const string& fname) {
       if (logfile.is_open())
         filename = newfname;
       else
-        ferror = true;
+        errmsg = strerror(errno);
     }
   }
 
-  if (ferror) {
+  if (errmsg) {
     logmutex.unlock();
-    error("error opening log file '%s': %s",  fname.c_str(), strerror(errno));
+    error("error opening log file '%s': %s",  fname.c_str(), errmsg);
   }
 }
 // select an output stream (safe)
@@ -291,6 +318,7 @@ ostream* Logger::set_streamer(int streamval) {
     case DEVNULL:    outstream = nullptr;
                      break;
     case UNCHANGED:
+    case ROOT_DEBUG:
     default:         outstream = curos;
                      break;
   }
@@ -382,14 +410,12 @@ string& Logger::logrecord(string& record, const char* timefmt,
   if (modname.size() > 0)
     msep = ": ";
 
-  // this is a bit tricky, but need to pass the thread id type anyway
   char tids[64];
   tids[0] = '\0';
   thread::id tid = this_thread::get_id();
-  if (tid != main_thread_id) {
-    string fmt("(%x) "); 
-    snprintf(tids, sizeof(tids), fmt.c_str(), tid);
-  }
+  if (tid != main_thread_id)
+    snprintf(tids, sizeof(tids), "(%x) ",
+             (unsigned int) hash<thread::id>()(this_thread::get_id()));
 
   // the final record formatting
   char entry[256];

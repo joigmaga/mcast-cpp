@@ -9,7 +9,8 @@
 #include <iostream>
 #include <map>
 
-#define UNCHANGED (-1)
+#define UNCHANGED  (-1)
+#define ROOT_DEBUG (-2)
 
 /* used for stream selection
    have nothing to do with known file descriptors
@@ -29,11 +30,14 @@
 #define MINLOG   NOTSET
 #define MAXLOG   CRITICAL
 
-/*
+#define ROOT_DEBUG_MODE       0
+#if ROOT_DEBUG_MODE
+#define MODULE_NAME_SIZE     32
+#define MAX_MODULE_SUBFIELDS 32
+#else
 #define MODULE_NAME_SIZE      8
-*/
-#define MODULE_NAME_SIZE      32
-#define MAX_MODULE_SUBFIELDS  32
+#define MAX_MODULE_SUBFIELDS 24 
+#endif
 
 #define TIMEFMT  "%Y/%m/%d:%H:%M:%S"
 
@@ -57,6 +61,7 @@ class Logger {
     std::string   filename;     // Active log file
     std::ostream* outstream;    // Pointer to output stream
     std::mutex    logmutex;     // Mutex for controlling output to stream/file
+    std::mutex    treemutex;    // Mutex for instance tree control
     bool          propagate;    // Continue the search upwards to the root
     logptr_t      parent;       // logger's ancestor
     std::map<std::string, logwptr_t> dict;      // Loggers Dictionary
