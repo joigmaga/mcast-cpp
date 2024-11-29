@@ -7,7 +7,8 @@
 
 using namespace std;
 
-static logptr_t logger = Logger::get_logger("TEST_1", ROOT_DEBUG, STDLOG);
+// static logptr_t logger = Logger::get_logger("TEST_1", ROOT_DEBUG);
+static logptr_t logger = Logger::get_logger("TEST_1", DEBUG, STDLOG);
 
 int main() {
   string host1   = "130.56.897.2";
@@ -37,7 +38,7 @@ int main() {
 
   {
     cerr << "runtime2 instance count: " << logger.use_count() << endl;
-    logptr_t logger2 = Logger::get_logger("TEST_2");
+    logptr_t logger2 = Logger::get_logger("TEST_2", INFO, STDLOG);
     logger2->set_logfile("noexiste/logfile2.log");
 
     logger2->error("big error: %d, %d, %s", 98, 67, "forgot the keys again");

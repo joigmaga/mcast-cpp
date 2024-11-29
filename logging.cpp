@@ -45,6 +45,10 @@ static thread::id main_thread_id = this_thread::get_id();
 // this boolean dynamically enables an especial debug facility intended for
 // logging tree building control in complex scenarios
 static bool root_debug = false;
+// these control some parameter limits, which can be extended in root deb mode
+//
+static int max_submod = MAX_MODULE_SUBFIELDS;
+static int max_modlen = MODULE_NAME_SIZE;
 
 ///////////// Logger class
 //
@@ -112,21 +116,16 @@ Logger::~Logger() {
           // close log file
           if (logfile.is_open())
             logfile.close();
-          if (root_debug) {
-            set_loglevel(DEBUG);
-            set_streamer(STDLOG);
-          }
+          if (root_debug)
+            set_root_debug();
           debug("tree update complete");
       }
       else {
         debug("a new logger must have been created in the meantime");
       }
     }
-    //if (root_debug) {
-    //  set_loglevel(DEBUG);
-    //  set_streamer(STDLOG);
-    //}
   }
+  // has parent so still can log
   info("logging module %s destroyed", module.c_str());
 }
 // Factories for root and regular loggers
@@ -145,8 +144,9 @@ logptr_t Logger::get_logger(int level, int stream) {
     root_instance = make_shared<Logger>(Private());
     if (level == ROOT_DEBUG) {
       root_debug = true;
-      root_instance->set_loglevel(DEBUG);
-      root_instance->set_streamer(STDLOG);
+      max_submod = ROOT_DEBUG_MAX_MODULE_SUBFIELDS;
+      max_modlen = ROOT_DEBUG_MODULE_NAME_SIZE;
+      root_instance->set_root_debug();
     }
     root_instance->info("root logging instance created");
   }
@@ -173,11 +173,10 @@ logptr_t Logger::get_logger(const string& module, int level, int stream) {
     pos = module.find('.', dotpos);
     submod = module.substr(0, pos);
 
-    if (++exit_loop > MAX_MODULE_SUBFIELDS) {
+    if (++exit_loop > max_submod) {
       // don't do any more searching
-      int mms = MAX_MODULE_SUBFIELDS;
       instance->error("max number of module subfields (%d) exceeded for %s",
-                        mms, module.c_str());
+                        max_submod, module.c_str());
       break;
     }
 
@@ -218,6 +217,13 @@ logptr_t Logger::get_logger(const string& module, int level, int stream) {
     throw runtime_error(string("null instance returned for module ") + module);
 
   return instance;
+}
+// set the root_debug mode
+//
+void Logger::set_root_debug() {
+
+  set_loglevel(DEBUG);
+  set_streamer(STDLOG);
 }
 // get/set current log level (safe)
 //
@@ -403,8 +409,8 @@ string& Logger::logrecord(string& record, const char* timefmt,
   tm* timeinfo = localtime(&now);
   strftime(timestamp, sizeof(timestamp), timefmt, timeinfo);
 
-  if (modname.size() > MODULE_NAME_SIZE)
-    modname = modname.substr(0, MODULE_NAME_SIZE);
+  if (modname.size() > max_modlen)
+    modname = modname.substr(0, max_modlen);
 
   string msep;
   if (modname.size() > 0)

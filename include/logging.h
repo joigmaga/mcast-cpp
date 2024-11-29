@@ -30,14 +30,11 @@
 #define MINLOG   NOTSET
 #define MAXLOG   CRITICAL
 
-#define ROOT_DEBUG_MODE       0
-#if ROOT_DEBUG_MODE
-#define MODULE_NAME_SIZE     32
-#define MAX_MODULE_SUBFIELDS 32
-#else
-#define MODULE_NAME_SIZE      8
-#define MAX_MODULE_SUBFIELDS 24 
-#endif
+#define MODULE_NAME_SIZE       8
+#define MAX_MODULE_SUBFIELDS  24 
+
+#define ROOT_DEBUG_MODULE_NAME_SIZE     32
+#define ROOT_DEBUG_MAX_MODULE_SUBFIELDS 32
 
 #define TIMEFMT  "%Y/%m/%d:%H:%M:%S"
 
@@ -66,6 +63,8 @@ class Logger {
     logptr_t      parent;       // logger's ancestor
     std::map<std::string, logwptr_t> dict;      // Loggers Dictionary
     //
+    // extra debugging
+    void set_root_debug();
     // formatting of logging records
     std::string& logrecord(std::string& record, const char* timefmt,
                       std::string modname, std::string& message, int level);
