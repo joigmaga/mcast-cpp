@@ -47,8 +47,8 @@ static thread::id main_thread_id = this_thread::get_id();
 static bool root_debug = false;
 // these control some parameter limits, which can be extended in root deb mode
 //
-static int max_submod = MAX_MODULE_SUBFIELDS;
-static int max_modlen = MODULE_NAME_SIZE;
+static unsigned int max_submod = MAX_MODULE_SUBFIELDS;
+static unsigned int max_modlen = MODULE_NAME_SIZE;
 
 ///////////// Logger class
 //
