@@ -11,9 +11,11 @@ using namespace std;
 static logptr_t logger = Logger::get_logger("TEST_1", DEBUG, STDLOG);
 
 int main() {
-  string host1   = "130.56.897.2";
+  string host1   = "130.56.197.2";
   string host2   = "ff02::1234:5678%4";
   string host3   = "f:0:12:3:56:8";
+  string hostv4m = "::ffff:235.34.32.11";
+  string hostv4u = "::ffff:130.206.1.2";
   string service = "www";
   string serv2   = "89";
   Address* addr;
@@ -23,9 +25,18 @@ int main() {
   addr = get_address(host1, serv2);
   if (addr) {
 
+    cout << "gets here!" << endl;
     cout << addr->print() << endl;
     cout << addr->Address::print() << endl;
   }
+  else
+    cout << "uuuuuh" << endl;
+
+  Address* addrv4u = get_address(hostv4u);
+  Address* addrv4m = get_address(hostv4m);
+
+  logger->warning("addrv4u is multicast: %d", addrv4u->is_multicast());
+  logger->warning("addrv4m is multicast: %d", addrv4m->is_multicast());
 
   cerr << "runtime instance count: " << logger.use_count() << endl;
   logger->error("big error: %d, %s", 56, "forgot the keys");
@@ -39,7 +50,7 @@ int main() {
   {
     cerr << "runtime2 instance count: " << logger.use_count() << endl;
     logptr_t logger2 = Logger::get_logger("TEST_2", INFO, STDLOG);
-    logger2->set_logfile("noexiste/logfile2.log");
+    logger2->set_logfile("logfile2.log");
 
     logger2->error("big error: %d, %d, %s", 98, 67, "forgot the keys again");
 

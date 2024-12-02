@@ -32,85 +32,162 @@ A multicast interface to the socket library
 using namespace std;
 
 // logging instance for this module
-static logptr_t logger = Logger::get_logger("ADDRESS");
+//
+static logptr_t logger = Logger::get_logger("ADDRESS", WARNING, STDLOG);
 
 // map describing the address families used in this module
-// map<int, string> family_map;
+//
+static std::map<int, std::string> family_map = { {AF_LOCAL_L2, "link layer"},
+                                                 {AF_INET,     "IPv4"},
+                                                 {AF_INET6,    "IPv6"} };
 
-std::map<int, std::string> family_map = { {AF_LOCAL_L2, "link layer"},
-                                          {AF_INET,     "IPv4"},
-                                          {AF_INET6,    "IPv6"} };
+// Address union hack to pack together the address variants we use
+//
+Addrunion::Addrunion(struct in_addr  addr) : in(addr)  {}
+Addrunion::Addrunion(struct in6_addr addr) : in6(addr) {}
+Addrunion::Addrunion(struct mac_addr addr) : mac(addr) {}
 
 //// Address base class. Constructor and methods
 //
-Address::Address(int fam, const string &host) : family(fam), printable(host) {}
-// This function may be overriden by children (IPv6 may append '%scope_zone')
+Address::Address(struct in_addr addr)  : family(AF_INET), address(addr),
+                                         host("")  {}
+Address::Address(struct in6_addr addr) : family(AF_INET6), address(addr),
+                                         host("")  {}
+Address::Address(struct mac_addr addr) : family(AF_LOCAL_L2), address(addr),
+                                         host("")  {}
+
+// These are virtual functions to be overriden in derived classes
 //
+bool Address::is_multicast() {
+  return false;
+}
+
 string Address::print() {
-  return printable;
+  return host;
 }
 
 //// IP v4 address
 // Constructor takes binary and textual formats of address
 //
-IPv4Address::IPv4Address(struct in_addr addr, const string &host) :
-                Address(AF_INET, host), address(addr) {
-  ipv4mapped = "::ffff:" + host;
+IPv4Address::IPv4Address(struct in_addr addr) : Address(addr) {
+  char buff[64];
+
+  if (inet_ntop(AF_INET, &address.in, buff, sizeof(buff))) {
+    host = string(buff);
+    ipv4mapped = "::ffff:" + host;
+  }
+  else {
+    logger->critical("Invalid address for family AF_INET");
+    throw("Configured address has no textual representation. Aborting");
+  }
+}
+
+// destructor
+IPv4Address::~IPv4Address() {
+
+  //delete address;
+  logger->warning("IPv4 address destroyed");
 }
 
 bool IPv4Address::is_multicast() {
 
-  return IN_MULTICAST(address.s_addr);
+  return IN_MULTICAST(address.in.s_addr);
 }
 
 //// IP v6 address
 //
-IPv6Address::IPv6Address(struct in6_addr addr, const string &host, int sid) :
-                Address(AF_INET6, host), address(addr), scope_id(sid) {
+IPv6Address::IPv6Address(struct in6_addr addr, int sid) :
+                Address(addr), scope_id(sid) {
+  char buff[64];
+
+  if (inet_ntop(AF_INET6, &address.in6, buff, sizeof(buff))) {
+    host = string(buff);
+  }
+  else {
+    logger->critical("Invalid address for family AF_INET6");
+    throw("Configured address has no textual representation. Aborting");
+  }
+}
+
+// destructor
+IPv6Address::~IPv6Address() {
+
+  //delete address;
+  logger->warning("IPv6 address destroyed");
 }
 
 bool IPv6Address::is_multicast() {
 
-  // check if IN6_IS_ADDR_V4MAPPED(address) and v4 address is multicast
-  return IN6_IS_ADDR_MULTICAST(&address);
+  // check if IN6_IS_ADDR_V4MAPPED(&address) and v4 address is multicast
+  if (IN6_IS_ADDR_V4MAPPED(&address.in6)) {
+    in_addr_t v4addr = ntohl(*(const in_addr_t *) &address.in6.s6_addr[12]);
+    return IN_MULTICAST(v4addr);
+  }
+
+  return IN6_IS_ADDR_MULTICAST(&address.in6);
 }
 
 string IPv6Address::print() {
-  if (scope_id > 0) {
-    char ifname[IFNAMSIZ];
 
-    if (if_indextoname(scope_id, ifname))
-      return printable + "%" + string(ifname);
+  if (scope_id > 0) {
+    unsigned int scope = get_scope();
+
+    if (not IN6_IS_ADDR_UNSPECIFIED(&address.in6) and
+        not IN6_IS_ADDR_LOOPBACK(&address.in6)    and
+        not (scope == SCP_GLOBAL)) {
+
+      char ifname[IFNAMSIZ];
+
+      if (if_indextoname(scope_id, ifname))
+        return host + "%" + string(ifname);
+    }
   }
 
-  return printable;
+  return host;
+}
+
+unsigned int IPv6Address::get_scope() {
+
+  if (IN6_IS_ADDR_UNSPECIFIED(&address.in6))
+    return SCP_INVSCOPE;
+
+  if (IN6_IS_ADDR_LOOPBACK(&address.in6) or IN6_IS_ADDR_LINKLOCAL(&address.in6))
+    return SCP_LINKLOCAL;
+
+  if IN6_IS_ADDR_MULTICAST(&address.in6)
+    return (unsigned int) address.in6.s6_addr[1] & 0x0f;
+
+  return SCP_GLOBAL;
 }
 
 //// Link layer address
 //
-LinkLayerAddress::LinkLayerAddress(struct mac_addr &addr, const string &host): 
-                             Address(AF_LOCAL_L2, host), address(addr) {}
-
-string LinkLayerAddress::print() {
+LinkLayerAddress::LinkLayerAddress(mac_addr addr): Address(addr) {
   char buff[32];
   
   if (snprintf(buff, sizeof(buff), "%02x:%02x:%02x:%02x:%02x:%02x",
-                 address.sl2_addr[0], address.sl2_addr[1],
-                 address.sl2_addr[2], address.sl2_addr[3],
-                 address.sl2_addr[4], address.sl2_addr[5])  < 0) {
-    perror("snprintf");
-    return string();
+                 address.mac.sl2_addr[0], address.mac.sl2_addr[1],
+                 address.mac.sl2_addr[2], address.mac.sl2_addr[3],
+                 address.mac.sl2_addr[4], address.mac.sl2_addr[5])  < 0) {
+    logger->critical("Invalid address for Link Layer address family");
+    throw("Configured address has no textual representation. Aborting");
   }
 
-  return string(buff);
+  host = string(buff);
+}
+
+// destructor
+LinkLayerAddress::~LinkLayerAddress() {
+
+  //delete address;
+  logger->warning("Link layer address destroyed");
 }
 
 // Factory functions to create addresses based on textual representation
 //
-Address* get_ip_address(const string &host, const string &service,
+Address* get_ip_address(const string& host, const string& service,
                         int family, int type) {
   int  res;
-  char buff[256];
 
   struct addrinfo   aih;
   struct addrinfo*  pai;
@@ -142,15 +219,11 @@ Address* get_ip_address(const string &host, const string &service,
 
   if (pai->ai_addr->sa_family == AF_INET) {
     psin = (struct sockaddr_in*) pai->ai_addr;
-    inet_ntop(AF_INET, &psin->sin_addr, buff, sizeof(buff));
-    const string thost = string(buff);
-    addr = new IPv4Address(psin->sin_addr, thost);
+    addr = new IPv4Address(psin->sin_addr);
   }
   else if (pai->ai_addr->sa_family == AF_INET6) {
     psin6 = (struct sockaddr_in6*) pai->ai_addr;
-    inet_ntop(AF_INET6, &psin6->sin6_addr, buff, sizeof(buff));
-    const string thost = string(buff);
-    addr = new IPv6Address(psin6->sin6_addr, thost, psin6->sin6_scope_id);
+    addr = new IPv6Address(psin6->sin6_addr, psin6->sin6_scope_id);
   }
   else {
     logger->error("getaddrinfo: invalid address family");
@@ -162,7 +235,7 @@ Address* get_ip_address(const string &host, const string &service,
   return addr;
 }
 
-Address* get_mac_address(const string &host) {
+Address* get_mac_address(const string& host) {
   // Converts from 'string' host to internal 'mac_addr' format
   // syntax is  'nhSnhSnhSnhSnh$nh'
   // where S is a valid separator character (:;.|)
@@ -183,7 +256,7 @@ Address* get_mac_address(const string &host) {
     // read hex characters until next separator and build value
     li = strtoul(p, &q, 16);
     if ((q-p) > 2)
-      // field two big. Occupies more than two hex chars
+      // field is too big. Occupies more than two hex chars
       break;
     if (*q and not strchr(MAC_SEPARATORS, *q))
       // Invalid separator character
@@ -211,12 +284,12 @@ Address* get_mac_address(const string &host) {
     return nullptr;
   }
 
-  return new LinkLayerAddress(macb, host);
+  return new LinkLayerAddress(macb);
 }
 
 // Factory function to create addresses based on textual representation
 //
-Address* get_address(string &host, const string &service, int family, int type)
+Address* get_address(string& host, const string& service, int family, int type)
 {
   Address* addr = nullptr;
 
@@ -231,7 +304,7 @@ Address* get_address(string &host, const string &service, int family, int type)
         logger->error("Invalid NULL MAC address");
       else   // AF_UNSPEC
         logger->error("Ambiguous NULL address. "
-                     "Specify '0.0.0.0', or '::' for IPv6");
+                      "Specify '0.0.0.0', or '::' for IPv6");
       return addr;
     }
   }
