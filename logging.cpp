@@ -161,7 +161,7 @@ logptr_t Logger::get_logger(int level, int stream) {
 logptr_t Logger::get_logger(const string& module, int level, int stream) {
   logptr_t  instance;
   size_t dotpos = 0;               // position of '.' character in name
-  int exit_loop = 0;               // to avoid excesive number of sub modules
+  unsigned int exit_loop = 0;      // to avoid excesive number of sub modules
 
   int root_level = level == ROOT_DEBUG ? level : UNCHANGED;
   instance = get_logger(root_level);       // this is the root instance
