@@ -66,7 +66,7 @@ void get_network_interfaces(string ifname,
 #endif
 #if __linux__
       struct sockaddr_ll* psl2 = (struct sockaddr_ll*) ifp->ifa_addr;
-      int alen = pl2->sll_halen;
+      int alen = psl2->sll_halen;
       char* pastart = psl2->sll_addr;
       index = psl2->sll_ifindex;
 #endif
