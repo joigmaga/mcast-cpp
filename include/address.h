@@ -46,14 +46,14 @@ class Address {
     Address(struct in6_addr  addr);
     Address(struct mac_addr  addr);
   public:
+    virtual ~Address();
     virtual std::string print();
     virtual bool        is_multicast();
 };
 
 class IPv4Address : public Address {
   protected:
-    //struct in_addr address;
-    int         service;
+    //int         service;
     std::string ipv4mapped;
     // The address can be constructed either from the binary representation
     // or from the textual one, whenever provided
@@ -65,8 +65,7 @@ class IPv4Address : public Address {
 
 class IPv6Address : public Address {
   protected:
-    //struct in6_addr address;
-    int         service;
+    //int         service;
     std::string map4;
     int         scope;
     int         scope_id;
@@ -81,20 +80,23 @@ class IPv6Address : public Address {
 };
 
 class LinkLayerAddress : public Address {
-  protected:
   public:
     LinkLayerAddress(struct mac_addr macb);
     ~LinkLayerAddress();
 };
 
-//Address* get_ip_address(const std::string &host, const std::string &service,
-//                        int family, int type);
+class InterfaceIPv4Address : public IPv4Address {
+  protected:
+  public:
+    InterfaceIPv4Address(struct in_addr addr, const std::string iface);
+};
 //
-//Address* get_mac_address(const std::string &host);
+// External factory
 //
-
-Address* get_address(std::string &host,
-                     const std::string &service=std::string(),
+Address* get_address(const std::string& host,
+                     const std::string& service=std::string(),
                      int family=AF_UNSPEC, int type=SOCK_DGRAM);
 
+
 #endif
+

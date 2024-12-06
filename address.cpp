@@ -41,8 +41,8 @@ static std::map<int, std::string> family_map = { {AF_LOCAL_L2, "link layer"},
                                                  {AF_INET,     "IPv4"},
                                                  {AF_INET6,    "IPv6"} };
 
-// Address union hack to pack together the address variants we use
-//
+// Address union packs together the address variants we use
+// Constructors
 Addrunion::Addrunion(struct in_addr  addr) : in(addr)  {}
 Addrunion::Addrunion(struct in6_addr addr) : in6(addr) {}
 Addrunion::Addrunion(struct mac_addr addr) : mac(addr) {}
@@ -56,6 +56,9 @@ Address::Address(struct in6_addr addr) : family(AF_INET6), address(addr),
 Address::Address(struct mac_addr addr) : family(AF_LOCAL_L2), address(addr),
                                          host("")  {}
 
+// Destructor
+Address::~Address() {}
+
 // These are virtual functions to be overriden in derived classes
 //
 bool Address::is_multicast() {
@@ -66,8 +69,12 @@ string Address::print() {
   return host;
 }
 
-//// IP v4 address
-// Constructor takes binary and textual formats of address
+////////   IPv4Address is a derived class from Address
+//
+// Constructor takes the binary form of the address and generates a
+// canonical form of the textual representation
+// This is required because user-provided text addresses may be incomplete
+// or ambiguous (e.g  '::', '192.1', '1:2:3:a:b:c') 
 //
 IPv4Address::IPv4Address(struct in_addr addr) : Address(addr) {
   char buff[64];
@@ -83,18 +90,14 @@ IPv4Address::IPv4Address(struct in_addr addr) : Address(addr) {
 }
 
 // destructor
-IPv4Address::~IPv4Address() {
-
-  //delete address;
-  logger->warning("IPv4 address destroyed");
-}
+IPv4Address::~IPv4Address() {}
 
 bool IPv4Address::is_multicast() {
 
   return IN_MULTICAST(address.in.s_addr);
 }
 
-//// IP v6 address
+////////   IPv6Address is a derived class from Address
 //
 IPv6Address::IPv6Address(struct in6_addr addr, int sid) :
                 Address(addr), scope_id(sid) {
@@ -110,11 +113,7 @@ IPv6Address::IPv6Address(struct in6_addr addr, int sid) :
 }
 
 // destructor
-IPv6Address::~IPv6Address() {
-
-  //delete address;
-  logger->warning("IPv6 address destroyed");
-}
+IPv6Address::~IPv6Address() {}
 
 bool IPv6Address::is_multicast() {
 
@@ -177,11 +176,7 @@ LinkLayerAddress::LinkLayerAddress(mac_addr addr): Address(addr) {
 }
 
 // destructor
-LinkLayerAddress::~LinkLayerAddress() {
-
-  //delete address;
-  logger->warning("Link layer address destroyed");
-}
+LinkLayerAddress::~LinkLayerAddress() {}
 
 // Factory functions to create addresses based on textual representation
 //
@@ -196,7 +191,7 @@ Address* get_ip_address(const string& host, const string& service,
   Address* addr;
   
   aih.ai_flags     = AI_NUMERICHOST;
-  aih.ai_family    = AF_UNSPEC;
+  aih.ai_family    = family;
   aih.ai_socktype  = SOCK_DGRAM;
   aih.ai_protocol  = 0;
   aih.ai_addrlen   = 0;
@@ -204,7 +199,8 @@ Address* get_ip_address(const string& host, const string& service,
   aih.ai_canonname = nullptr;
   aih.ai_next      = nullptr;
   
-  res = getaddrinfo(host.c_str(), service.c_str(), &aih, &pai);
+  res = getaddrinfo(host.c_str(),
+                    service.empty() ? nullptr : service.c_str(), &aih, &pai);
   if (res != 0) {
     logger->error("getaddrinfo error: %s", gai_strerror(res));
     return nullptr;
@@ -289,16 +285,23 @@ Address* get_mac_address(const string& host) {
 
 // Factory function to create addresses based on textual representation
 //
-Address* get_address(string& host, const string& service, int family, int type)
-{
+Address* get_address(const string& host, const string& service,
+                       int family, int type) {
   Address* addr = nullptr;
+
+  if (host.size() > MAX_HOST_STRLEN) {
+    logger->error("Maximum address length exceeded");
+    return addr;
+  }
+
+  string tmphost(host);
 
   // Build appropriate INADDR_ANY address for each family
   if (host.empty()) {
     if (family == AF_INET)
-      host = string("0.0.0.0");
+      tmphost = string("0.0.0.0");
     else if (family == AF_INET6)
-      host = string("::");
+      tmphost = string("::");
     else {
       if (family == AF_LOCAL_L2)
         logger->error("Invalid NULL MAC address");
@@ -309,21 +312,14 @@ Address* get_address(string& host, const string& service, int family, int type)
     }
   }
 
-  if (host.size() > MAX_HOST_STRLEN) {
-    logger->error("Maximum address length exceeded");
-    return addr;
-  }
-
-  const string address(host); 
+  const string chost(tmphost); 
 
   switch(family) {
-    case AF_LOCAL_L2:  addr = get_mac_address(address);
+    case AF_LOCAL_L2:  addr = get_mac_address(chost);
                        break;
-    case AF_UNSPEC:    addr = get_ip_address(address, service, family, type);
-                       break;
-    case AF_INET:      addr = get_ip_address(address, service, AF_INET, type);
-                       break;
-    case AF_INET6:     addr = get_ip_address(address, service, AF_INET6, type);
+    case AF_INET:
+    case AF_INET6:
+    case AF_UNSPEC:    addr = get_ip_address(chost, service, family, type);
                        break;
     default:           logger->error("Invalid address family: %d", family);
                        break;
@@ -331,4 +327,3 @@ Address* get_address(string& host, const string& service, int family, int type)
 
   return addr;
 }
-

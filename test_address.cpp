@@ -7,7 +7,6 @@
 
 using namespace std;
 
-// static logptr_t logger = Logger::get_logger("TEST_1", ROOT_DEBUG);
 static logptr_t logger = Logger::get_logger("TEST_1", DEBUG, STDLOG);
 
 int main() {
@@ -17,20 +16,22 @@ int main() {
   string hostv4m = "::ffff:235.34.32.11";
   string hostv4u = "::ffff:130.206.1.2";
   string service = "www";
-  string serv2   = "89";
   Address* addr;
 
   logger->set_logfile("logfile.log");
 
-  addr = get_address(host1, serv2);
-  if (addr) {
+  {
+    Address* addrx = get_address(host1);
+    if (addrx) {
 
-    cout << "gets here!" << endl;
-    cout << addr->print() << endl;
-    cout << addr->Address::print() << endl;
+      cout << "gets here!" << endl;
+      cout << addrx->print() << endl;
+      cout << addrx->Address::print() << endl;
+      delete addrx;
+    }
+    else
+      cout << "uuuuuh" << endl;
   }
-  else
-    cout << "uuuuuh" << endl;
 
   Address* addrv4u = get_address(hostv4u);
   Address* addrv4m = get_address(hostv4m);
@@ -54,14 +55,15 @@ int main() {
 
     logger2->error("big error: %d, %d, %s", 98, 67, "forgot the keys again");
 
-    addr = get_address(host3, service, AF_LOCAL_L2);
-    if (addr) {
+    Address* addry = get_address(host3, service, AF_LOCAL_L2);
+    if (addry) {
 
-      cout << addr->print() << endl;
-      cout << addr->Address::print() << endl;
+      cout << addry->print() << endl;
+      cout << addry->Address::print() << endl;
 
-      cout << "host: " << addr->print() << endl;
-      cout << "host: " << addr->Address::print() << endl;
+      cout << "host: " << addry->print() << endl;
+      cout << "host: " << addry->Address::print() << endl;
+      delete addry;
     }
 
     logptr_t logger3 = Logger::get_logger("TEST_2");
@@ -74,4 +76,5 @@ int main() {
     logger3->error("big error: %d, %d, %s", 9, 6, "forgot the keys once again");
   } 
 
+  delete addr;
 }

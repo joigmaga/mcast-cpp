@@ -17,6 +17,9 @@ test_address: test_address.o address.o logging.o
 test2: test2.o logging.o
 	${CXX} $^ -o $@
 
+getifaddrs: getifaddrs.o address.o logging.o
+	${CXX} $^ -o $@
+
 #
 #  Putting everything together 
 #
