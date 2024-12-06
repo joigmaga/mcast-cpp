@@ -7,7 +7,9 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#if __APPLE__
 #include <net/if_dl.h>
+#endif
 #include <netinet/in.h>
 #include <ifaddrs.h>
 
