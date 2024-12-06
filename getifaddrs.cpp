@@ -10,6 +10,9 @@
 #if __APPLE__
 #include <net/if_dl.h>
 #endif
+#if __linux__
+#include <linux/if_packet.h>
+#endif
 #include <netinet/in.h>
 #include <ifaddrs.h>
 
