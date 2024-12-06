@@ -70,7 +70,7 @@ void get_network_interfaces(string ifname,
 #if __linux__
       struct sockaddr_ll* psl2 = (struct sockaddr_ll*) ifp->ifa_addr;
       int alen = psl2->sll_halen;
-      char* pastart = psl2->sll_addr;
+      unsigned char* pastart = psl2->sll_addr;
       index = psl2->sll_ifindex;
 #endif
       logger->warning("L2, index: %d, addr len: %d", index, alen);
