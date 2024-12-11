@@ -41,7 +41,7 @@ static std::map<int, std::string> family_map = { {AF_LOCAL_L2, "link layer"},
                                                  {AF_INET,     "IPv4"},
                                                  {AF_INET6,    "IPv6"} };
 
-// Address union packs together the address variants we use
+// Address union packs together the address variants we use in each case
 // Constructors
 Addrunion::Addrunion(struct in_addr  addr) : in(addr)  {}
 Addrunion::Addrunion(struct in6_addr addr) : in6(addr) {}
@@ -49,24 +49,34 @@ Addrunion::Addrunion(struct mac_addr addr) : mac(addr) {}
 
 //// Address base class. Constructor and methods
 //
-Address::Address(struct in_addr addr)  : family(AF_INET), address(addr),
-                                         host("")  {}
-Address::Address(struct in6_addr addr) : family(AF_INET6), address(addr),
-                                         host("")  {}
-Address::Address(struct mac_addr addr) : family(AF_LOCAL_L2), address(addr),
-                                         host("")  {}
+Address::Address(struct in_addr addr)  : address(addr), family(AF_INET),     host("")  {}
+Address::Address(struct in6_addr addr) : address(addr), family(AF_INET6),    host("")  {}
+Address::Address(struct mac_addr addr) : address(addr), family(AF_LOCAL_L2), host("")  {}
 
 // Destructor
 Address::~Address() {}
 
+sa_family_t Address::get_family() const {
+  return family;
+}
+
 // These are virtual functions to be overriden in derived classes
 //
+bool Address::operator==(const Address& other) const {
+  cout << "comparing gets at Address base" << endl;
+  return false;
+}
+
 bool Address::is_multicast() {
   return false;
 }
 
 string Address::print() {
   return host;
+}
+
+void* Address::get_source() const {
+  return nullptr;
 }
 
 ////////   IPv4Address is a derived class from Address
@@ -92,6 +102,19 @@ IPv4Address::IPv4Address(struct in_addr addr) : Address(addr) {
 // destructor
 IPv4Address::~IPv4Address() {}
 
+void* IPv4Address::get_source() const {
+  return (void *) &address.in;
+}
+
+bool IPv4Address::operator==(const Address& other) const {
+
+  cout << "comparing gets at IPv4 Address" << endl;
+
+  auto inaddr = (struct in_addr*) other.get_source();
+
+  return (other.get_family() == AF_INET) and (inaddr->s_addr == address.in.s_addr);
+}
+
 bool IPv4Address::is_multicast() {
 
   return IN_MULTICAST(address.in.s_addr);
@@ -114,6 +137,27 @@ IPv6Address::IPv6Address(struct in6_addr addr, int sid) :
 
 // destructor
 IPv6Address::~IPv6Address() {}
+
+void* IPv6Address::get_source() const {
+  return (void *) &address.in6;
+}
+
+bool IPv6Address::operator==(const Address& other) const {
+
+  cout << "comparing gets at IPv6 Address" << endl;
+
+  if (other.get_family() != AF_INET6)
+    return false;
+
+  auto in6addr = (struct in6_addr*) other.get_source();
+
+  for (int i=0; i<16; i++) {
+     if (in6addr->s6_addr[i] != address.in6.s6_addr[i])
+       return false;
+  }
+
+  return true;
+}
 
 bool IPv6Address::is_multicast() {
 
@@ -177,6 +221,25 @@ LinkLayerAddress::LinkLayerAddress(mac_addr addr): Address(addr) {
 
 // destructor
 LinkLayerAddress::~LinkLayerAddress() {}
+
+void* LinkLayerAddress::get_source() const {
+  return (void *) &address.mac;
+}
+
+bool LinkLayerAddress::operator==(const Address& other) const {
+
+  if (other.get_family() != AF_LOCAL_L2)
+    return false;
+
+  auto macaddr = (struct mac_addr*) other.get_source();
+
+  for (int i=0; i<6; i++) {
+     if (macaddr->sl2_addr[i] != address.mac.sl2_addr[i])
+       return false;
+  }
+
+  return true;
+}
 
 // Factory functions to create addresses based on textual representation
 //

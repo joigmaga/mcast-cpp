@@ -1,6 +1,7 @@
 #ifndef INC_ADDRESS
 #define INC_ADDRESS
 
+#include <sys/types.h>
 #include <netinet/in.h>
 
 #define MAX_HOST_STRLEN   32
@@ -13,6 +14,7 @@
 #endif
 
 #define SCP_INVSCOPE  0x00
+#define SCP_UNSPEC    0x00
 #define SCP_NODELOCAL 0x01
 #define SCP_LINKLOCAL 0x02
 #define SCP_SITELOCAL 0x05
@@ -36,19 +38,22 @@ typedef union Addrunion addrunion_t;
 
 // A base class from which all types of addresses are derived 
 class Address {
-  // This object represents an address staisfying a given condition
+  // This object represents an address satisfying a given condition
   protected:
-    int           family;         // Address family
     addrunion_t   address;        // Binary form of address
+    sa_family_t   family;         // Address family
     std::string   host;           // Textual representation of address
     //
     Address(struct in_addr   addr);
     Address(struct in6_addr  addr);
     Address(struct mac_addr  addr);
   public:
+    sa_family_t   get_family() const;
     virtual ~Address();
+    virtual bool operator==(const Address& other) const;
     virtual std::string print();
     virtual bool        is_multicast();
+    virtual void* get_source() const;
 };
 
 class IPv4Address : public Address {
@@ -60,7 +65,9 @@ class IPv4Address : public Address {
   public:
     IPv4Address(struct in_addr addr);
     ~IPv4Address();
-    bool        is_multicast();
+    void* get_source() const;
+    bool operator==(const Address& other) const;
+    bool  is_multicast();
 };
 
 class IPv6Address : public Address {
@@ -73,6 +80,8 @@ class IPv6Address : public Address {
   public:
     IPv6Address(struct in6_addr addr, int sid=0);
     ~IPv6Address();
+    void* get_source() const;
+    bool operator==(const Address& other) const;
     unsigned int get_scope();
     std::string print();
     bool is_multicast();
@@ -83,6 +92,8 @@ class LinkLayerAddress : public Address {
   public:
     LinkLayerAddress(struct mac_addr macb);
     ~LinkLayerAddress();
+    void* get_source() const;
+    bool operator==(const Address& other) const;
 };
 
 class InterfaceIPv4Address : public IPv4Address {
@@ -99,4 +110,3 @@ Address* get_address(const std::string& host,
 
 
 #endif
-
