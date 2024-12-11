@@ -11,22 +11,25 @@ SOURCES	        := address.cpp logging.cpp getifaddrs.cpp
 OBJECTS	        := ${SOURCES:.cpp=.o} 
 PROGRAM_OBJECTS := ${PROGRAMS:=.o}
 
-# Programs linking multiple objects 
-test_address: % : %.o ${OBJECTS}
-	${CXX} $^ -o $@
-
-test_getifaddrs: % : %.o ${OBJECTS}
-	${CXX} $^ -o $@
-
-test2: test2.o logging.o
-	${CXX} $^ -o $@
-
 #
 #  Putting everything together 
 #
 .PHONY: all
 
 all: ${PROGRAMS}
+
+# Programs linking multiple objects 
+#test_address: % : %.o ${OBJECTS}
+#	${CXX} $^ -o $@
+#
+#test_getifaddrs: % : %.o ${OBJECTS}
+#	${CXX} $^ -o $@
+
+${PROGRAMS}: % : %.o ${OBJECTS}
+	${CXX} $^ -o $@
+
+test2: test2.o logging.o
+	${CXX} $^ -o $@
 
 %.o: %.cpp Makefile
 	${CXX} ${CXXFLAGS} ${CXXEXTRAFLAGS} -c $<
