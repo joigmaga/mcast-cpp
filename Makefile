@@ -18,16 +18,11 @@ PROGRAM_OBJECTS := ${PROGRAMS:=.o}
 
 all: ${PROGRAMS}
 
-# Programs linking multiple objects 
-#test_address: % : %.o ${OBJECTS}
-#	${CXX} $^ -o $@
+${PROGRAMS}: % : %.o ${OBJECTS} Makefile
+	${CXX} $< ${OBJECTS} -o $@
+
+# add extra programs here
 #
-#test_getifaddrs: % : %.o ${OBJECTS}
-#	${CXX} $^ -o $@
-
-${PROGRAMS}: % : %.o ${OBJECTS}
-	${CXX} $^ -o $@
-
 test2: test2.o logging.o
 	${CXX} $^ -o $@
 
