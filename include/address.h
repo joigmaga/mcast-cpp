@@ -53,7 +53,7 @@ class Address {
     virtual bool operator==(const Address& other) const;
     virtual std::string print();
     virtual bool        is_multicast();
-    virtual void* get_source() const;
+    virtual void* get_binaddr() const;
 };
 
 class IPv4Address : public Address {
@@ -65,7 +65,7 @@ class IPv4Address : public Address {
   public:
     IPv4Address(struct in_addr addr);
     ~IPv4Address();
-    void* get_source() const;
+    void* get_binaddr() const;
     bool operator==(const Address& other) const;
     bool  is_multicast();
 };
@@ -80,7 +80,7 @@ class IPv6Address : public Address {
   public:
     IPv6Address(struct in6_addr addr, int sid=0);
     ~IPv6Address();
-    void* get_source() const;
+    void* get_binaddr() const;
     bool operator==(const Address& other) const;
     unsigned int get_scope();
     std::string print();
@@ -92,7 +92,7 @@ class LinkLayerAddress : public Address {
   public:
     LinkLayerAddress(struct mac_addr macb);
     ~LinkLayerAddress();
-    void* get_source() const;
+    void* get_binaddr() const;
     bool operator==(const Address& other) const;
 };
 

@@ -26,6 +26,11 @@ ${PROGRAMS}: % : %.o ${OBJECTS} Makefile
 test2: test2.o logging.o
 	${CXX} $^ -o $@
 
+test3: test3.o logging.o
+	${CXX} $^ -o $@
+
+# generic object compilation
+#
 %.o: %.cpp Makefile
 	${CXX} ${CXXFLAGS} ${CXXEXTRAFLAGS} -c $<
 

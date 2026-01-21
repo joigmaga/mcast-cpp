@@ -75,7 +75,7 @@ string Address::print() {
   return host;
 }
 
-void* Address::get_source() const {
+void* Address::get_binaddr() const {
   return nullptr;
 }
 
@@ -102,7 +102,7 @@ IPv4Address::IPv4Address(struct in_addr addr) : Address(addr) {
 // destructor
 IPv4Address::~IPv4Address() {}
 
-void* IPv4Address::get_source() const {
+void* IPv4Address::get_binaddr() const {
   return (void *) &address.in;
 }
 
@@ -110,7 +110,7 @@ bool IPv4Address::operator==(const Address& other) const {
 
   cout << "comparing gets at IPv4 Address" << endl;
 
-  auto inaddr = (struct in_addr*) other.get_source();
+  auto inaddr = (struct in_addr*) other.get_binaddr();
 
   return (other.get_family() == AF_INET) and (inaddr->s_addr == address.in.s_addr);
 }
@@ -138,7 +138,7 @@ IPv6Address::IPv6Address(struct in6_addr addr, int sid) :
 // destructor
 IPv6Address::~IPv6Address() {}
 
-void* IPv6Address::get_source() const {
+void* IPv6Address::get_binaddr() const {
   return (void *) &address.in6;
 }
 
@@ -149,7 +149,7 @@ bool IPv6Address::operator==(const Address& other) const {
   if (other.get_family() != AF_INET6)
     return false;
 
-  auto in6addr = (struct in6_addr*) other.get_source();
+  auto in6addr = (struct in6_addr*) other.get_binaddr();
 
   for (int i=0; i<16; i++) {
      if (in6addr->s6_addr[i] != address.in6.s6_addr[i])
@@ -222,7 +222,7 @@ LinkLayerAddress::LinkLayerAddress(mac_addr addr): Address(addr) {
 // destructor
 LinkLayerAddress::~LinkLayerAddress() {}
 
-void* LinkLayerAddress::get_source() const {
+void* LinkLayerAddress::get_binaddr() const {
   return (void *) &address.mac;
 }
 
@@ -231,7 +231,7 @@ bool LinkLayerAddress::operator==(const Address& other) const {
   if (other.get_family() != AF_LOCAL_L2)
     return false;
 
-  auto macaddr = (struct mac_addr*) other.get_source();
+  auto macaddr = (struct mac_addr*) other.get_binaddr();
 
   for (int i=0; i<6; i++) {
      if (macaddr->sl2_addr[i] != address.mac.sl2_addr[i])
